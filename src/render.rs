@@ -196,9 +196,12 @@ unsafe fn draw_minigame_panel(hdc: HDC, rect: RECT, state: &AppState, warning: b
     let _ = windows::Win32::Graphics::Gdi::DeleteObject(brush);
 
     let status_text = if state.game.active {
-        format!("Mini-game active: type '{}'", state.game.target_display())
+        format!(
+            "Mini-game active (Esc to stop): type '{}'",
+            state.game.target_display()
+        )
     } else {
-        "Press G to toggle the typing mini-game".to_string()
+        "Press G to start the typing mini-game".to_string()
     };
 
     let mut status_rect = panel_rect;

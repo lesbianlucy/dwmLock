@@ -2,7 +2,7 @@ use rand::{prelude::SliceRandom, thread_rng};
 use std::time::{Duration, Instant};
 
 const TARGETS: &[u8] = b"asdfghjklqwertyuiopzxcvbnm1234567890";
-const TICK_TIMEOUT: Duration = Duration::from_secs(5);
+const TICK_TIMEOUT: Duration = Duration::from_secs(2);
 
 #[derive(Debug, Clone)]
 pub struct MiniGameState {
@@ -31,18 +31,23 @@ impl MiniGameState {
         self.last_update = Instant::now();
     }
 
-    pub fn handle_char(&mut self, ch: char) {
+    pub fn stop(&mut self) {
+        self.active = false;
+    }
+
+    pub fn handle_input(&mut self, ch: char) -> bool {
         if !self.active {
-            return;
+            return false;
         }
 
         if ch.eq_ignore_ascii_case(&self.target) {
             self.score = self.score.saturating_add(1);
             self.target = self.random_target();
             self.last_update = Instant::now();
-        } else if ch.is_ascii() {
+        } else if ch.is_ascii() && !ch.is_ascii_whitespace() {
             self.misses = self.misses.saturating_add(1);
         }
+        true
     }
 
     pub fn tick(&mut self) {

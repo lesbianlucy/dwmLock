@@ -32,14 +32,17 @@ use windows::{
             InvalidateRect, SelectObject, StretchDIBits, DIB_RGB_COLORS, PAINTSTRUCT, SRCCOPY,
         },
         System::LibraryLoader::GetModuleHandleW,
-        UI::WindowsAndMessaging::{
-            ClipCursor, CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GetMessageW, KillTimer,
-            LoadCursorW, MessageBoxW, PostQuitMessage, RegisterClassW, SetCursorPos, SetForegroundWindow, SetTimer,
-            SetWindowPos, ShowCursor, ShowWindow, TranslateMessage, CS_HREDRAW, CS_VREDRAW, HMENU, MSG, SC_CLOSE,
-            SWP_NOMOVE, SWP_NOSIZE, SWP_SHOWWINDOW, SW_SHOW, WINDOW_EX_STYLE, WNDCLASSW, WM_ACTIVATE, WM_CHAR,
-            WM_CLOSE, WM_CREATE, WM_DESTROY, WM_ERASEBKGND, WM_KEYDOWN, WM_MOUSEMOVE, WM_PAINT, WM_SYSCOMMAND,
-            WM_SYSKEYDOWN, WM_TIMER, WNDCLASS_STYLES, HWND_TOPMOST, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_POPUP,
-            WS_VISIBLE,
+        UI::{
+            Input::KeyboardAndMouse::VK_ESCAPE,
+            WindowsAndMessaging::{
+                ClipCursor, CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GetMessageW, KillTimer,
+                LoadCursorW, MessageBoxW, PostQuitMessage, RegisterClassW, SetCursorPos, SetForegroundWindow, SetTimer,
+                SetWindowPos, ShowCursor, ShowWindow, TranslateMessage, CS_HREDRAW, CS_VREDRAW, HMENU, MSG, SC_CLOSE,
+                SWP_NOMOVE, SWP_NOSIZE, SWP_SHOWWINDOW, SW_SHOW, WINDOW_EX_STYLE, WNDCLASSW, WM_ACTIVATE, WM_CHAR,
+                WM_CLOSE, WM_CREATE, WM_DESTROY, WM_ERASEBKGND, WM_KEYDOWN, WM_MOUSEMOVE, WM_PAINT, WM_SYSCOMMAND,
+                WM_SYSKEYDOWN, WM_TIMER, WNDCLASS_STYLES, HWND_TOPMOST, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_POPUP,
+                WS_VISIBLE,
+            },
         },
     },
 };
@@ -195,7 +198,10 @@ unsafe extern "system" fn window_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lpar
             let _ = InvalidateRect(hwnd, None, false);
             LRESULT(0)
         }
-        WM_KEYDOWN | WM_SYSKEYDOWN => LRESULT(0),
+        WM_KEYDOWN | WM_SYSKEYDOWN => {
+            handle_keydown(hwnd, wparam.0 as u32);
+            LRESULT(0)
+        }
         WM_CLOSE => LRESULT(0),
         WM_ACTIVATE => {
             let _ = SetForegroundWindow(hwnd);
@@ -292,17 +298,8 @@ unsafe fn draw_buffered(hdc: windows::Win32::Graphics::Gdi::HDC, state: &AppStat
 fn handle_char(hwnd: HWND, char_code: u32) {
     let mut state = app_state().lock().unwrap();
     if let Some(ch) = char::from_u32(char_code) {
-        if ch == 'g' || ch == 'G' {
-            state.game.toggle();
-            drop(state);
-            unsafe {
-                let _ = InvalidateRect(hwnd, None, false);
-            }
-            return;
-        }
-
-        if state.game.active {
-            state.game.handle_char(ch);
+        let consumed = state.game.handle_input(ch);
+        if consumed {
             drop(state);
             unsafe {
                 let _ = InvalidateRect(hwnd, None, false);
@@ -341,6 +338,31 @@ fn handle_char(hwnd: HWND, char_code: u32) {
     drop(state);
     unsafe {
         let _ = InvalidateRect(hwnd, None, false);
+    }
+}
+
+fn handle_keydown(hwnd: HWND, vk: u32) {
+    const KEY_G: u32 = b'G' as u32;
+
+    let mut state = app_state().lock().unwrap();
+    match vk {
+        KEY_G => {
+            state.game.toggle();
+            drop(state);
+            unsafe {
+                let _ = InvalidateRect(hwnd, None, false);
+            }
+        }
+        k if k == VK_ESCAPE.0 as u32 => {
+            if state.game.active {
+                state.game.stop();
+                drop(state);
+                unsafe {
+                    let _ = InvalidateRect(hwnd, None, false);
+                }
+            }
+        }
+        _ => {}
     }
 }
 
