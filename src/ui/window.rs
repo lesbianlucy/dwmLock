@@ -1,3 +1,5 @@
+#![allow(unsafe_op_in_unsafe_fn)]
+
 use super::settings_dialog::show_settings_dialog;
 use crate::{
     blur::blur_buffer,

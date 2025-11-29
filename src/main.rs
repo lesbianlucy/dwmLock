@@ -3,18 +3,7 @@
 #[cfg(not(windows))]
 compile_error!("dwmlock currently only targets Windows platforms.");
 
-mod blur;
-mod capture;
-mod config;
-mod keyboard;
-mod monitors;
-mod notifications;
-mod render;
-mod settings;
-mod state;
-mod ui;
-
-use crate::{
+use dwmlock::{
     keyboard::CtrlAltDeleteHook,
     notifications::dismiss_notifications,
     settings::{Settings, load_settings, persist_settings},

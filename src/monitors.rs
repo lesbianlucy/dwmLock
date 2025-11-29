@@ -1,3 +1,5 @@
+#![allow(unsafe_op_in_unsafe_fn)]
+
 use std::{collections::HashSet, ffi::OsStr, mem::size_of, os::windows::ffi::OsStrExt};
 use windows::{
     Win32::{

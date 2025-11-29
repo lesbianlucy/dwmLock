@@ -1,3 +1,5 @@
+#![allow(unsafe_op_in_unsafe_fn)]
+
 use windows::Win32::{
     Foundation::{BOOL, HWND, LPARAM, WPARAM},
     UI::WindowsAndMessaging::{

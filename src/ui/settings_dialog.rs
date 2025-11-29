@@ -1,3 +1,5 @@
+#![allow(unsafe_op_in_unsafe_fn)]
+
 use std::{ffi::OsStr, os::windows::ffi::OsStrExt, sync::Once};
 
 use windows::{
