@@ -1,4 +1,4 @@
-use rand::{distributions::SliceRandom, thread_rng};
+use rand::{prelude::SliceRandom, thread_rng};
 use std::time::{Duration, Instant};
 
 const TARGETS: &[u8] = b"asdfghjklqwertyuiopzxcvbnm1234567890";

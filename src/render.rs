@@ -103,6 +103,8 @@ unsafe fn draw_normal_content(hdc: HDC, rect: RECT, state: &AppState) {
         COLORREF(0x0095A5C1),
         PRIMARY_FONT,
     );
+
+    draw_minigame_panel(hdc, rect, state, false);
 }
 
 unsafe fn draw_warning_content(hdc: HDC, rect: RECT, state: &AppState) {
@@ -154,6 +156,8 @@ unsafe fn draw_warning_content(hdc: HDC, rect: RECT, state: &AppState) {
         COLORREF(0x00F0C674),
         PRIMARY_FONT,
     );
+
+    draw_minigame_panel(hdc, rect, state, true);
 }
 
 unsafe fn draw_password_field(hdc: HDC, rect: &RECT, state: &AppState) {
@@ -170,6 +174,60 @@ unsafe fn draw_password_field(hdc: HDC, rect: &RECT, state: &AppState) {
         28,
         FW_NORMAL.0 as i32,
         COLORREF(0x00FFFFFF),
+        MONO_FONT,
+    );
+}
+
+unsafe fn draw_minigame_panel(hdc: HDC, rect: RECT, state: &AppState, warning: bool) {
+    let mut panel_rect = rect;
+    panel_rect.left += 25;
+    panel_rect.right -= 25;
+    panel_rect.bottom -= 10;
+    panel_rect.top = panel_rect.bottom - 100;
+
+    let panel_color = if warning {
+        COLORREF(0x002B1010)
+    } else {
+        COLORREF(0x00282F4A)
+    };
+
+    let brush = CreateSolidBrush(panel_color);
+    FillRect(hdc, &panel_rect, brush);
+    let _ = windows::Win32::Graphics::Gdi::DeleteObject(brush);
+
+    let status_text = if state.game.active {
+        format!("Mini-game active: type '{}'", state.game.target_display())
+    } else {
+        "Press G to toggle the typing mini-game".to_string()
+    };
+
+    let mut status_rect = panel_rect;
+    status_rect.top += 8;
+    status_rect.bottom = status_rect.top + 40;
+    draw_text_with_font(
+        hdc,
+        &status_rect,
+        &status_text,
+        24,
+        FW_MEDIUM.0 as i32,
+        COLORREF(0x00FDFDFD),
+        PRIMARY_FONT,
+    );
+
+    let scoreboard = format!(
+        "Score: {}   Misses: {}",
+        state.game.score, state.game.misses
+    );
+    let mut score_rect = panel_rect;
+    score_rect.top = status_rect.bottom - 5;
+    score_rect.bottom = score_rect.top + 40;
+    draw_text_with_font(
+        hdc,
+        &score_rect,
+        &scoreboard,
+        22,
+        FW_NORMAL.0 as i32,
+        COLORREF(0x00A3C4F3),
         MONO_FONT,
     );
 }

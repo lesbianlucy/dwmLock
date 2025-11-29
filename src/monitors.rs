@@ -1,14 +1,14 @@
-use std::{collections::HashSet, mem::size_of, ptr::null_mut};
+use std::{collections::HashSet, mem::size_of};
 use windows::{
     core::{w, PCWSTR},
     Win32::{
-        Foundation::{BOOL, HWND, LPARAM, RECT},
+        Foundation::{BOOL, HWND, LPARAM, LRESULT, RECT, WPARAM},
         Graphics::Gdi::{
-            CreateSolidBrush, EnumDisplayMonitors, GetMonitorInfoW, HBRUSH, HDC, MONITORINFOEXW,
+            EnumDisplayMonitors, GetMonitorInfoW, GetStockObject, HBRUSH, HDC, HMONITOR, MONITORINFOEXW, BLACK_BRUSH,
         },
         UI::WindowsAndMessaging::{
-            CreateWindowExW, DefWindowProcW, DestroyWindow, RegisterClassW, ShowWindow, CS_HREDRAW, CS_VREDRAW, HMENU,
-            HMONITOR, SW_SHOW, WINDOW_EX_STYLE, WNDCLASSW, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_POPUP, WS_VISIBLE,
+            CreateWindowExW, DestroyWindow, RegisterClassW, ShowWindow, CS_HREDRAW, CS_VREDRAW, HMENU, SW_SHOW,
+            WINDOW_EX_STYLE, WNDCLASSW, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_POPUP, WS_VISIBLE,
         },
     },
 };
@@ -61,14 +61,18 @@ pub fn destroy_overlays(handles: &[HWND]) {
     }
 }
 
+unsafe extern "system" fn blank_wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
+    windows::Win32::UI::WindowsAndMessaging::DefWindowProcW(hwnd, msg, wparam, lparam)
+}
+
 unsafe fn register_blank_class(instance: windows::Win32::Foundation::HINSTANCE) {
     use std::sync::Once;
     static INIT: Once = Once::new();
     INIT.call_once(|| {
-        let brush = CreateSolidBrush(windows::Win32::Graphics::Gdi::COLORREF(0x00000000));
+        let brush = GetStockObject(BLACK_BRUSH);
         let class = WNDCLASSW {
             style: CS_HREDRAW | CS_VREDRAW,
-            lpfnWndProc: Some(DefWindowProcW),
+            lpfnWndProc: Some(blank_wnd_proc),
             hInstance: instance,
             lpszClassName: BLANK_CLASS,
             hbrBackground: HBRUSH(brush.0),
@@ -99,7 +103,7 @@ unsafe fn create_blank_window(
     if hwnd.0 == 0 {
         None
     } else {
-        ShowWindow(hwnd, SW_SHOW);
+        let _ = ShowWindow(hwnd, SW_SHOW);
         Some(hwnd)
     }
 }

@@ -6,16 +6,20 @@ compile_error!("lockwin currently only targets Windows platforms.");
 mod blur;
 mod capture;
 mod config;
+mod game;
+mod monitors;
 mod render;
+mod settings;
 mod state;
 
 use crate::{
     blur::blur_buffer,
     capture::{build_bitmap_info, capture_screen},
-    config::{
-        APPROVAL_CAPTION, APPROVAL_PROMPT, BLUR_RADIUS, CLASS_NAME, PASSWORD, TIMER_ID, TIMER_INTERVAL_MS,
-    },
+    config::{APPROVAL_CAPTION, APPROVAL_PROMPT, BLUR_RADIUS, CLASS_NAME, TIMER_ID, TIMER_INTERVAL_MS},
+    game::MiniGameState,
+    monitors::{destroy_overlays, spawn_overlays},
     render::draw_overlay,
+    settings::load_settings,
     state::{app_state, arm_warning, init_state, mark_warning, AppState},
 };
 use std::process;
@@ -53,7 +57,9 @@ fn run() -> Result<()> {
             return Ok(());
         }
 
+        let settings = load_settings();
         let mut captured = capture_screen()?;
+        let autostart_game = settings.minigame_autostart;
         blur_buffer(
             &mut captured.pixels,
             captured.width as usize,
@@ -67,9 +73,12 @@ fn run() -> Result<()> {
             height: captured.height,
             pixels: captured.pixels,
             bitmap_info,
-            password: PASSWORD.to_string(),
+            password: settings.password.clone(),
             input: String::new(),
             warning_since: None,
+            settings,
+            monitor_windows: Vec::new(),
+            game: MiniGameState::new(autostart_game),
         });
 
         create_window_loop()?;
@@ -129,6 +138,16 @@ unsafe fn create_window_loop() -> Result<()> {
     let _ = ShowWindow(hwnd, SW_SHOW);
     let _ = SetForegroundWindow(hwnd);
 
+    {
+        let settings = {
+            let state = app_state().lock().unwrap();
+            state.settings.clone()
+        };
+        let overlays = spawn_overlays(instance.into(), &settings);
+        let mut state = app_state().lock().unwrap();
+        state.monitor_windows = overlays;
+    }
+
     let mut message = MSG::default();
     while GetMessageW(&mut message, HWND(0), 0, 0).into() {
         let _ = TranslateMessage(&message);
@@ -169,6 +188,10 @@ unsafe extern "system" fn window_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lpar
             }
         }
         WM_TIMER => {
+            {
+                let mut state = app_state().lock().unwrap();
+                state.game.tick();
+            }
             let _ = InvalidateRect(hwnd, None, false);
             LRESULT(0)
         }
@@ -179,6 +202,11 @@ unsafe extern "system" fn window_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lpar
             LRESULT(0)
         }
         WM_DESTROY => {
+            {
+                let mut state = app_state().lock().unwrap();
+                destroy_overlays(&state.monitor_windows);
+                state.monitor_windows.clear();
+            }
             let _ = KillTimer(hwnd, TIMER_ID);
             release_locks();
             PostQuitMessage(0);
@@ -263,6 +291,25 @@ unsafe fn draw_buffered(hdc: windows::Win32::Graphics::Gdi::HDC, state: &AppStat
 
 fn handle_char(hwnd: HWND, char_code: u32) {
     let mut state = app_state().lock().unwrap();
+    if let Some(ch) = char::from_u32(char_code) {
+        if ch == 'g' || ch == 'G' {
+            state.game.toggle();
+            drop(state);
+            unsafe {
+                let _ = InvalidateRect(hwnd, None, false);
+            }
+            return;
+        }
+
+        if state.game.active {
+            state.game.handle_char(ch);
+            drop(state);
+            unsafe {
+                let _ = InvalidateRect(hwnd, None, false);
+            }
+            return;
+        }
+    }
 
     match char_code {
         0x08 => {
