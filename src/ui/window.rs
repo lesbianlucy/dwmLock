@@ -1,16 +1,21 @@
+use super::settings_dialog::show_settings_dialog;
 use crate::{
+    blur::blur_buffer,
+    capture::{build_bitmap_info, capture_screen},
     config::{CLASS_NAME, TIMER_ID, TIMER_INTERVAL_MS},
     monitors::{destroy_overlays, spawn_overlays},
-    render::draw_overlay,
+    render::{draw_overlay, settings_button_rect},
+    settings::Settings,
     state::{AppState, app_state, arm_warning, mark_warning},
 };
+use std::mem;
 use windows::{
     Win32::{
-        Foundation::{HWND, LPARAM, LRESULT, RECT, WPARAM},
+        Foundation::{HWND, LPARAM, LRESULT, POINT, RECT, WPARAM},
         Graphics::Gdi::{
             BeginPaint, BitBlt, CreateCompatibleBitmap, CreateCompatibleDC, DIB_RGB_COLORS,
-            DeleteDC, DeleteObject, EndPaint, InvalidateRect, PAINTSTRUCT, SRCCOPY, SelectObject,
-            StretchDIBits,
+            DeleteDC, DeleteObject, EndPaint, InvalidateRect, PAINTSTRUCT, PtInRect, SRCCOPY,
+            SelectObject, StretchDIBits,
         },
         System::LibraryLoader::GetModuleHandleW,
         UI::WindowsAndMessaging::{
@@ -19,13 +24,50 @@ use windows::{
             MessageBoxW, PostQuitMessage, RegisterClassW, SC_CLOSE, SW_SHOW, SWP_NOMOVE,
             SWP_NOSIZE, SWP_SHOWWINDOW, SetCursorPos, SetForegroundWindow, SetTimer, SetWindowPos,
             ShowCursor, ShowWindow, TranslateMessage, WINDOW_EX_STYLE, WM_ACTIVATE, WM_CHAR,
-            WM_CLOSE, WM_CREATE, WM_DESTROY, WM_ERASEBKGND, WM_KEYDOWN, WM_MOUSEMOVE, WM_PAINT,
-            WM_SYSCOMMAND, WM_SYSKEYDOWN, WM_TIMER, WNDCLASS_STYLES, WNDCLASSW, WS_EX_TOOLWINDOW,
-            WS_EX_TOPMOST, WS_POPUP, WS_VISIBLE,
+            WM_CLOSE, WM_CREATE, WM_DESTROY, WM_ERASEBKGND, WM_KEYDOWN, WM_LBUTTONDOWN,
+            WM_MOUSEMOVE, WM_PAINT, WM_SYSCOMMAND, WM_SYSKEYDOWN, WM_TIMER, WNDCLASS_STYLES,
+            WNDCLASSW, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_POPUP, WS_VISIBLE,
         },
     },
     core::{Result, w},
 };
+
+pub fn build_app_state(settings: &Settings) -> Result<AppState> {
+    let mut captured = unsafe { capture_screen()? };
+    if settings.blur_enabled {
+        blur_buffer(
+            &mut captured.pixels,
+            captured.width as usize,
+            captured.height as usize,
+            settings.blur_radius.max(1),
+        );
+    }
+    let bitmap_info = build_bitmap_info(captured.width, captured.height);
+    Ok(AppState {
+        width: captured.width,
+        height: captured.height,
+        pixels: captured.pixels,
+        bitmap_info,
+        password: settings.password.clone(),
+        input: String::new(),
+        warning_since: None,
+        settings: settings.clone(),
+        monitor_windows: Vec::new(),
+    })
+}
+
+pub unsafe fn refresh_display(settings: Settings) -> Result<()> {
+    let mut new_state = build_app_state(&settings)?;
+    let instance = GetModuleHandleW(None)?;
+    new_state.monitor_windows = spawn_overlays(instance.into(), &new_state.settings);
+    let mut guard = app_state().lock().unwrap();
+    let old_windows = mem::take(&mut guard.monitor_windows);
+    drop(guard);
+    destroy_overlays(&old_windows);
+    let mut guard = app_state().lock().unwrap();
+    *guard = new_state;
+    Ok(())
+}
 
 pub unsafe fn create_window_loop() -> Result<()> {
     let instance = GetModuleHandleW(None)?;
@@ -118,6 +160,17 @@ unsafe extern "system" fn window_proc(
             mark_warning();
             focus_and_lock(hwnd);
             let _ = InvalidateRect(hwnd, None, false);
+            LRESULT(0)
+        }
+        WM_LBUTTONDOWN => {
+            let point = point_from_lparam(lparam);
+            let rect = {
+                let state = app_state().lock().unwrap();
+                settings_button_rect(&state)
+            };
+            if PtInRect(&rect, point).0 != 0 {
+                handle_settings_click(hwnd);
+            }
             LRESULT(0)
         }
         WM_CHAR => {
@@ -263,6 +316,28 @@ fn handle_char(hwnd: HWND, char_code: u32) {
     unsafe {
         let _ = InvalidateRect(hwnd, None, false);
     }
+}
+
+unsafe fn handle_settings_click(hwnd: HWND) {
+    let mut settings = {
+        let state = app_state().lock().unwrap();
+        state.settings.clone()
+    };
+    if let Ok(applied) = show_settings_dialog(&mut settings) {
+        if applied {
+            if let Err(err) = refresh_display(settings) {
+                eprintln!("refresh failed: {err:?}");
+            } else {
+                let _ = SetForegroundWindow(hwnd);
+            }
+        }
+    }
+}
+
+fn point_from_lparam(lparam: LPARAM) -> POINT {
+    let x = (lparam.0 as u32 & 0xffff) as i16 as i32;
+    let y = ((lparam.0 as u32 >> 16) & 0xffff) as i16 as i32;
+    POINT { x, y }
 }
 
 unsafe fn focus_and_lock(hwnd: HWND) {

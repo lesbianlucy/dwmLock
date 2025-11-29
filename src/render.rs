@@ -5,9 +5,10 @@ use windows::{
         Foundation::{COLORREF, RECT},
         Graphics::Gdi::{
             CLEARTYPE_QUALITY, CLIP_DEFAULT_PRECIS, CreateFontW, CreateSolidBrush, DEFAULT_CHARSET,
-            DEFAULT_PITCH, DT_CENTER, DT_SINGLELINE, DT_VCENTER, DrawTextW, FW_BOLD, FW_MEDIUM,
-            FW_NORMAL, FillRect, FrameRect, GRADIENT_FILL_RECT_V, GRADIENT_RECT, GradientFill, HDC,
-            OUT_DEFAULT_PRECIS, SelectObject, SetBkMode, SetTextColor, TRANSPARENT, TRIVERTEX,
+            DEFAULT_PITCH, DT_CENTER, DT_SINGLELINE, DT_VCENTER, DeleteObject, DrawTextW, FW_BOLD,
+            FW_MEDIUM, FW_NORMAL, FillRect, FrameRect, GRADIENT_FILL_RECT_V, GRADIENT_RECT,
+            GradientFill, HDC, OUT_DEFAULT_PRECIS, SelectObject, SetBkMode, SetTextColor,
+            TRANSPARENT, TRIVERTEX,
         },
     },
     core::PCWSTR,
@@ -157,6 +158,8 @@ unsafe fn draw_normal_content(hdc: HDC, rect: RECT, state: &AppState) {
         COLORREF(0x00C7D2EE),
         PRIMARY_FONT,
     );
+    let button_rect = settings_button_rect(state);
+    draw_settings_button(hdc, button_rect, scale);
 }
 
 unsafe fn draw_warning_content(hdc: HDC, rect: RECT, state: &AppState) {
@@ -216,6 +219,47 @@ unsafe fn draw_warning_content(hdc: HDC, rect: RECT, state: &AppState) {
         COLORREF(0x00F0C674),
         PRIMARY_FONT,
     );
+}
+
+pub fn settings_button_rect(state: &AppState) -> RECT {
+    let panel = responsive_panel_rect(state);
+    let scale = overlay_scale(&panel);
+    let width = scaled(180, scale);
+    let height = scaled(46, scale);
+    let top = panel.bottom - height - scaled(30, scale);
+    let left = panel.left + scaled(30, scale);
+    RECT {
+        left,
+        top,
+        right: left + width,
+        bottom: top + height,
+    }
+}
+
+fn draw_settings_button(hdc: HDC, rect: RECT, scale: f32) {
+    unsafe {
+        fill_gradient(hdc, &rect, COLORREF(0x00252F43), COLORREF(0x00516DA0));
+        let outline = RECT {
+            left: rect.left,
+            top: rect.top,
+            right: rect.right,
+            bottom: rect.bottom,
+        };
+        let border = CreateSolidBrush(COLORREF(0x00435A8A));
+        let _ = FrameRect(hdc, &outline, border);
+        let _ = DeleteObject(border);
+        let mut text_rect = rect;
+        text_rect.top += scaled(4, scale);
+        draw_text_with_font(
+            hdc,
+            &text_rect,
+            "Settings",
+            scaled(20, scale),
+            FW_MEDIUM.0 as i32,
+            COLORREF(0x00FFFFFF),
+            PRIMARY_FONT,
+        );
+    }
 }
 
 unsafe fn draw_password_field(hdc: HDC, rect: &RECT, state: &AppState, font_size: i32) {

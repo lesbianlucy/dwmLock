@@ -5,6 +5,7 @@
 - `src/main.rs` is the orchestrator: it reads settings, optionally opens the UI, prepares the screen capture, initializes the shared `AppState`, installs the keyboard hook, and hands execution to the window loop from `src/ui/window.rs`.
 - `src/ui/window.rs` owns the Win32 window class, message loop, painting, overlay lifecycle, blur rendering, and lock confirmation prompt. Moving this code into `src/ui` keeps the UI plumbing separate from the rest of the crate.
 - `src/ui/settings_dialog.rs` renders the modal settings dialog with grouped controls for password, blur, monitor blanking, and the new options such as per-monitor text hints. Keeping it next to `window.rs` makes it easier to evolve the UI without cluttering the runtime logic.
+- The lock overlay now exposes a Settings button (rendered by `src/render.rs`) so the dialog can be opened while locked; the decorated button geometry is shared between the renderer and the Win32 click handling in `src/ui/window.rs`.
 - `src/settings.rs` serializes/deserializes user preferences (`Settings`) and returns defaults; `settings_dialog` consumes and mutates that struct before the main process saves it back with `persist_settings`.
 - `src/monitors.rs` enumerates and blanks external displays. Blank overlays now optionally draw helper text so users know the lock is active even on disabled screens.
 

@@ -8,6 +8,7 @@ DwmLock is a Windows-only Rust application that captures the desktop, applies a 
 - Installs a low-level keyboard hook to swallow `Ctrl+Alt+Delete`.
 - Optionally blanks selected monitors using overlays (configure in `%APPDATA%/DwmLock/dwmlock_settings.json` or the in-app dropdown for "keep on", "all", or "specific" monitors).
 - Supports booting straight into the settings UI via the `--open-settings` flag or the "Open settings on startup" checkbox for quick tweaks before locking.
+- Tap the "Settings" button on the lock overlay to open the graphical dialog (it has the monitor dropdown plus other toggles) without leaving the lock screen.
 - Adds a "Show lock text on each monitor" checkbox so every blanked display can remind people that input is locked even when the screens are off.
 - Let the lock screen show your actual desktop by turning off the "Enable blur background" checkbox in the settings dialog.
 - Dismisses Windows toast/action center notifications on startup so they do not overlap the lock UI.

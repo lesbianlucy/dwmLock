@@ -15,15 +15,13 @@ mod state;
 mod ui;
 
 use crate::{
-    blur::blur_buffer,
-    capture::{build_bitmap_info, capture_screen},
     keyboard::CtrlAltDeleteHook,
     notifications::dismiss_notifications,
     settings::{Settings, load_settings, persist_settings},
-    state::{AppState, init_state},
+    state::init_state,
     ui::{
         settings_dialog::show_settings_dialog,
-        window::{confirm_lock, create_window_loop},
+        window::{build_app_state, confirm_lock, create_window_loop},
     },
 };
 use std::{env, process};
@@ -53,28 +51,8 @@ fn run() -> Result<()> {
             return Ok(());
         }
 
-        let mut captured = capture_screen()?;
-        if settings.blur_enabled {
-            blur_buffer(
-                &mut captured.pixels,
-                captured.width as usize,
-                captured.height as usize,
-                settings.blur_radius.max(1),
-            );
-        }
-        let bitmap_info = build_bitmap_info(captured.width, captured.height);
-
-        init_state(AppState {
-            width: captured.width,
-            height: captured.height,
-            pixels: captured.pixels,
-            bitmap_info,
-            password: settings.password.clone(),
-            input: String::new(),
-            warning_since: None,
-            settings,
-            monitor_windows: Vec::new(),
-        });
+        let initial_state = build_app_state(&settings)?;
+        init_state(initial_state);
 
         let _ctrl_alt_delete_hook = CtrlAltDeleteHook::install()?;
         create_window_loop()?;
