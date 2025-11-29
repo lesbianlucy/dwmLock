@@ -61,7 +61,8 @@ fn default_disable_monitors() -> Vec<String> {
 }
 
 pub fn settings_path() -> PathBuf {
-    let mut base = config_dir().unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
+    let mut base = config_dir()
+        .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
     base.push(SETTINGS_DIR_NAME);
     base.push(SETTINGS_FILE_NAME);
     base

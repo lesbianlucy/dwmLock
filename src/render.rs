@@ -1,21 +1,21 @@
 use chrono::Local;
 use std::{ffi::OsStr, os::windows::ffi::OsStrExt};
 use windows::{
-    core::PCWSTR,
     Win32::{
         Foundation::{COLORREF, RECT},
         Graphics::Gdi::{
-            CreateFontW, CreateSolidBrush, DrawTextW, FillRect, FrameRect, GradientFill, SelectObject, SetBkMode,
-            SetTextColor, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, DEFAULT_CHARSET, DEFAULT_PITCH, DT_CENTER,
-            DT_SINGLELINE, DT_VCENTER, FW_BOLD, FW_MEDIUM, FW_NORMAL, GRADIENT_FILL_RECT_V, GRADIENT_RECT, HDC,
-            OUT_DEFAULT_PRECIS, TRANSPARENT, TRIVERTEX,
+            CLEARTYPE_QUALITY, CLIP_DEFAULT_PRECIS, CreateFontW, CreateSolidBrush, DEFAULT_CHARSET,
+            DEFAULT_PITCH, DT_CENTER, DT_SINGLELINE, DT_VCENTER, DrawTextW, FW_BOLD, FW_MEDIUM,
+            FW_NORMAL, FillRect, FrameRect, GRADIENT_FILL_RECT_V, GRADIENT_RECT, GradientFill, HDC,
+            OUT_DEFAULT_PRECIS, SelectObject, SetBkMode, SetTextColor, TRANSPARENT, TRIVERTEX,
         },
     },
+    core::PCWSTR,
 };
 
 use crate::{
     config::WARNING_MESSAGE,
-    state::{warning_active, AppState},
+    state::{AppState, warning_active},
 };
 
 const PRIMARY_FONT: &str = "Segoe UI Variable Display";
@@ -262,9 +262,17 @@ unsafe fn draw_divider(hdc: HDC, rect: RECT, y: i32) {
 
 unsafe fn draw_panel_background(hdc: HDC, rect: &RECT, warning: bool) {
     let (top, bottom, accent) = if warning {
-        (COLORREF(0x00300030), COLORREF(0x00100010), COLORREF(0x007F1D1D))
+        (
+            COLORREF(0x00300030),
+            COLORREF(0x00100010),
+            COLORREF(0x007F1D1D),
+        )
     } else {
-        (COLORREF(0x0020294A), COLORREF(0x000B1323), COLORREF(0x004357B7))
+        (
+            COLORREF(0x0020294A),
+            COLORREF(0x000B1323),
+            COLORREF(0x004357B7),
+        )
     };
 
     fill_gradient(hdc, rect, top, bottom);

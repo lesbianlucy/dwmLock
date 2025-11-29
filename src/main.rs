@@ -7,6 +7,7 @@ mod blur;
 mod capture;
 mod config;
 mod game;
+mod keyboard;
 mod monitors;
 mod render;
 mod settings;
@@ -15,36 +16,41 @@ mod state;
 use crate::{
     blur::blur_buffer,
     capture::{build_bitmap_info, capture_screen},
-    config::{APPROVAL_CAPTION, APPROVAL_PROMPT, BLUR_RADIUS, CLASS_NAME, TIMER_ID, TIMER_INTERVAL_MS},
+    config::{
+        APPROVAL_CAPTION, APPROVAL_PROMPT, BLUR_RADIUS, CLASS_NAME, TIMER_ID, TIMER_INTERVAL_MS,
+    },
     game::MiniGameState,
+    keyboard::CtrlAltDeleteHook,
     monitors::{destroy_overlays, spawn_overlays},
     render::draw_overlay,
     settings::load_settings,
-    state::{app_state, arm_warning, init_state, mark_warning, AppState},
+    state::{AppState, app_state, arm_warning, init_state, mark_warning},
 };
 use std::process;
 use windows::{
-    core::{w, Result},
     Win32::{
         Foundation::{HWND, LPARAM, LRESULT, RECT, WPARAM},
         Graphics::Gdi::{
-            BeginPaint, BitBlt, CreateCompatibleBitmap, CreateCompatibleDC, DeleteDC, DeleteObject, EndPaint,
-            InvalidateRect, SelectObject, StretchDIBits, DIB_RGB_COLORS, PAINTSTRUCT, SRCCOPY,
+            BeginPaint, BitBlt, CreateCompatibleBitmap, CreateCompatibleDC, DIB_RGB_COLORS,
+            DeleteDC, DeleteObject, EndPaint, InvalidateRect, PAINTSTRUCT, SRCCOPY, SelectObject,
+            StretchDIBits,
         },
         System::LibraryLoader::GetModuleHandleW,
         UI::{
             Input::KeyboardAndMouse::VK_ESCAPE,
             WindowsAndMessaging::{
-                ClipCursor, CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GetMessageW, KillTimer,
-                LoadCursorW, MessageBoxW, PostQuitMessage, RegisterClassW, SetCursorPos, SetForegroundWindow, SetTimer,
-                SetWindowPos, ShowCursor, ShowWindow, TranslateMessage, CS_HREDRAW, CS_VREDRAW, HMENU, MSG, SC_CLOSE,
-                SWP_NOMOVE, SWP_NOSIZE, SWP_SHOWWINDOW, SW_SHOW, WINDOW_EX_STYLE, WNDCLASSW, WM_ACTIVATE, WM_CHAR,
-                WM_CLOSE, WM_CREATE, WM_DESTROY, WM_ERASEBKGND, WM_KEYDOWN, WM_MOUSEMOVE, WM_PAINT, WM_SYSCOMMAND,
-                WM_SYSKEYDOWN, WM_TIMER, WNDCLASS_STYLES, HWND_TOPMOST, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_POPUP,
-                WS_VISIBLE,
+                CS_HREDRAW, CS_VREDRAW, ClipCursor, CreateWindowExW, DefWindowProcW, DestroyWindow,
+                DispatchMessageW, GetMessageW, HMENU, HWND_TOPMOST, KillTimer, LoadCursorW, MSG,
+                MessageBoxW, PostQuitMessage, RegisterClassW, SC_CLOSE, SW_SHOW, SWP_NOMOVE,
+                SWP_NOSIZE, SWP_SHOWWINDOW, SetCursorPos, SetForegroundWindow, SetTimer,
+                SetWindowPos, ShowCursor, ShowWindow, TranslateMessage, WINDOW_EX_STYLE,
+                WM_ACTIVATE, WM_CHAR, WM_CLOSE, WM_CREATE, WM_DESTROY, WM_ERASEBKGND, WM_KEYDOWN,
+                WM_MOUSEMOVE, WM_PAINT, WM_SYSCOMMAND, WM_SYSKEYDOWN, WM_TIMER, WNDCLASS_STYLES,
+                WNDCLASSW, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_POPUP, WS_VISIBLE,
             },
         },
     },
+    core::{Result, w},
 };
 
 fn main() {
@@ -84,6 +90,7 @@ fn run() -> Result<()> {
             game: MiniGameState::new(autostart_game),
         });
 
+        let _ctrl_alt_delete_hook = CtrlAltDeleteHook::install()?;
         create_window_loop()?;
     }
 
@@ -160,7 +167,12 @@ unsafe fn create_window_loop() -> Result<()> {
     Ok(())
 }
 
-unsafe extern "system" fn window_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
+unsafe extern "system" fn window_proc(
+    hwnd: HWND,
+    msg: u32,
+    wparam: WPARAM,
+    lparam: LPARAM,
+) -> LRESULT {
     match msg {
         WM_CREATE => {
             focus_and_lock(hwnd);

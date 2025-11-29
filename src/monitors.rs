@@ -1,16 +1,18 @@
 use std::{collections::HashSet, mem::size_of};
 use windows::{
-    core::{w, PCWSTR},
     Win32::{
         Foundation::{BOOL, HWND, LPARAM, LRESULT, RECT, WPARAM},
         Graphics::Gdi::{
-            EnumDisplayMonitors, GetMonitorInfoW, GetStockObject, HBRUSH, HDC, HMONITOR, MONITORINFOEXW, BLACK_BRUSH,
+            BLACK_BRUSH, EnumDisplayMonitors, GetMonitorInfoW, GetStockObject, HBRUSH, HDC,
+            HMONITOR, MONITORINFOEXW,
         },
         UI::WindowsAndMessaging::{
-            CreateWindowExW, DestroyWindow, RegisterClassW, ShowWindow, CS_HREDRAW, CS_VREDRAW, HMENU, SW_SHOW,
-            WINDOW_EX_STYLE, WNDCLASSW, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_POPUP, WS_VISIBLE,
+            CS_HREDRAW, CS_VREDRAW, CreateWindowExW, DestroyWindow, HMENU, RegisterClassW, SW_SHOW,
+            ShowWindow, WINDOW_EX_STYLE, WNDCLASSW, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_POPUP,
+            WS_VISIBLE,
         },
     },
+    core::{PCWSTR, w},
 };
 
 use crate::settings::Settings;
@@ -23,7 +25,10 @@ struct MonitorDescriptor {
     rect: RECT,
 }
 
-pub fn spawn_overlays(instance: windows::Win32::Foundation::HINSTANCE, settings: &Settings) -> Vec<HWND> {
+pub fn spawn_overlays(
+    instance: windows::Win32::Foundation::HINSTANCE,
+    settings: &Settings,
+) -> Vec<HWND> {
     if settings.disable_monitors.is_empty() {
         return Vec::new();
     }
@@ -61,7 +66,12 @@ pub fn destroy_overlays(handles: &[HWND]) {
     }
 }
 
-unsafe extern "system" fn blank_wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
+unsafe extern "system" fn blank_wnd_proc(
+    hwnd: HWND,
+    msg: u32,
+    wparam: WPARAM,
+    lparam: LPARAM,
+) -> LRESULT {
     windows::Win32::UI::WindowsAndMessaging::DefWindowProcW(hwnd, msg, wparam, lparam)
 }
 
@@ -123,10 +133,7 @@ fn enumerate_monitors() -> Vec<MonitorDescriptor> {
         info.monitorInfo.cbSize = size_of::<MONITORINFOEXW>() as u32;
         if GetMonitorInfoW(hmonitor, &mut info.monitorInfo as *mut _ as *mut _) != BOOL(0) {
             let name = widestring_to_string(&info.szDevice);
-            monitors.push(MonitorDescriptor {
-                name,
-                rect: *rect,
-            });
+            monitors.push(MonitorDescriptor { name, rect: *rect });
         }
         BOOL(1)
     }
@@ -154,6 +161,9 @@ fn canonicalize_name(name: &str) -> String {
 }
 
 fn widestring_to_string(buffer: &[u16]) -> String {
-    let nul_pos = buffer.iter().position(|ch| *ch == 0).unwrap_or(buffer.len());
+    let nul_pos = buffer
+        .iter()
+        .position(|ch| *ch == 0)
+        .unwrap_or(buffer.len());
     String::from_utf16_lossy(&buffer[..nul_pos])
 }

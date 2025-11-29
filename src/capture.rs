@@ -1,12 +1,13 @@
 use windows::{
-    core::Result,
     Win32::{
         Graphics::Gdi::{
-            BitBlt, CreateCompatibleBitmap, CreateCompatibleDC, DeleteDC, DeleteObject, GetDC, GetDIBits, ReleaseDC,
-            SelectObject, BITMAPINFO, BITMAPINFOHEADER, BI_RGB, DIB_RGB_COLORS, RGBQUAD, SRCCOPY,
+            BI_RGB, BITMAPINFO, BITMAPINFOHEADER, BitBlt, CreateCompatibleBitmap,
+            CreateCompatibleDC, DIB_RGB_COLORS, DeleteDC, DeleteObject, GetDC, GetDIBits, RGBQUAD,
+            ReleaseDC, SRCCOPY, SelectObject,
         },
         UI::WindowsAndMessaging::{GetDesktopWindow, GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN},
     },
+    core::Result,
 };
 
 pub struct ScreenImage {
@@ -62,7 +63,11 @@ pub unsafe fn capture_screen() -> Result<ScreenImage> {
         return Err(windows::core::Error::from_win32());
     }
 
-    Ok(ScreenImage { width, height, pixels })
+    Ok(ScreenImage {
+        width,
+        height,
+        pixels,
+    })
 }
 
 pub fn build_bitmap_info(width: i32, height: i32) -> BITMAPINFO {
