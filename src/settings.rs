@@ -2,7 +2,21 @@ use dirs::config_dir;
 use serde::{Deserialize, Serialize};
 use std::{fs, path::PathBuf};
 
-use crate::config::{DEFAULT_PASSWORD, SETTINGS_DIR_NAME, SETTINGS_FILE_NAME};
+use crate::config::{DEFAULT_BLUR_RADIUS, DEFAULT_PASSWORD, SETTINGS_DIR_NAME, SETTINGS_FILE_NAME};
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum MonitorBlankingMode {
+    None,
+    All,
+    Custom,
+}
+
+impl Default for MonitorBlankingMode {
+    fn default() -> Self {
+        MonitorBlankingMode::Custom
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Settings {
@@ -10,6 +24,14 @@ pub struct Settings {
     pub password: String,
     #[serde(default = "default_disable_monitors")]
     pub disable_monitors: Vec<String>,
+    #[serde(default)]
+    pub monitor_mode: MonitorBlankingMode,
+    #[serde(default, alias = "show_settings_on_startup")]
+    pub open_settings_on_startup: bool,
+    #[serde(default = "default_dismiss_notifications")]
+    pub dismiss_notifications_on_startup: bool,
+    #[serde(default = "default_blur_radius")]
+    pub blur_radius: usize,
 }
 
 impl Default for Settings {
@@ -17,6 +39,10 @@ impl Default for Settings {
         Self {
             password: default_password(),
             disable_monitors: default_disable_monitors(),
+            monitor_mode: MonitorBlankingMode::default(),
+            open_settings_on_startup: false,
+            dismiss_notifications_on_startup: true,
+            blur_radius: default_blur_radius(),
         }
     }
 }
@@ -30,6 +56,9 @@ pub fn load_settings() -> Settings {
     };
     if settings.password.trim().is_empty() {
         settings.password = default_password();
+    }
+    if settings.blur_radius == 0 {
+        settings.blur_radius = default_blur_radius();
     }
     settings
 }
@@ -49,12 +78,25 @@ fn save_settings(path: &PathBuf, settings: &Settings) {
     }
 }
 
+pub fn persist_settings(settings: &Settings) {
+    let path = settings_path();
+    save_settings(&path, settings);
+}
+
 fn default_password() -> String {
     DEFAULT_PASSWORD.to_string()
 }
 
 fn default_disable_monitors() -> Vec<String> {
     vec!["DISPLAY2".to_string()]
+}
+
+fn default_dismiss_notifications() -> bool {
+    true
+}
+
+fn default_blur_radius() -> usize {
+    DEFAULT_BLUR_RADIUS
 }
 
 pub fn settings_path() -> PathBuf {

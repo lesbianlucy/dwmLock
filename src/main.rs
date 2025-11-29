@@ -1,7 +1,7 @@
 #![allow(unsafe_op_in_unsafe_fn)]
 
 #[cfg(not(windows))]
-compile_error!("lockwin currently only targets Windows platforms.");
+compile_error!("dwmlock currently only targets Windows platforms.");
 
 mod blur;
 mod capture;
@@ -11,22 +11,22 @@ mod monitors;
 mod notifications;
 mod render;
 mod settings;
+mod settings_dialog;
 mod state;
 
 use crate::{
     blur::blur_buffer,
     capture::{build_bitmap_info, capture_screen},
-    config::{
-        APPROVAL_CAPTION, APPROVAL_PROMPT, BLUR_RADIUS, CLASS_NAME, TIMER_ID, TIMER_INTERVAL_MS,
-    },
+    config::{APPROVAL_CAPTION, APPROVAL_PROMPT, CLASS_NAME, TIMER_ID, TIMER_INTERVAL_MS},
     keyboard::CtrlAltDeleteHook,
     monitors::{destroy_overlays, spawn_overlays},
     notifications::dismiss_notifications,
     render::draw_overlay,
-    settings::load_settings,
+    settings::{Settings, load_settings, persist_settings},
+    settings_dialog::show_settings_dialog,
     state::{AppState, app_state, arm_warning, init_state, mark_warning},
 };
-use std::process;
+use std::{env, process};
 use windows::{
     Win32::{
         Foundation::{HWND, LPARAM, LRESULT, RECT, WPARAM},
@@ -52,25 +52,34 @@ use windows::{
 
 fn main() {
     if let Err(err) = run() {
-        eprintln!("lockwin failed: {err:?}");
+        eprintln!("dwmlock failed: {err:?}");
         process::exit(1);
     }
 }
 
 fn run() -> Result<()> {
     unsafe {
+        let mut settings = load_settings();
+        if should_open_settings_ui(&settings) {
+            if show_settings_dialog(&mut settings)? {
+                persist_settings(&settings);
+            }
+        }
+
+        if settings.dismiss_notifications_on_startup {
+            dismiss_notifications();
+        }
+
         if !confirm_lock() {
             return Ok(());
         }
 
-        dismiss_notifications();
-        let settings = load_settings();
         let mut captured = capture_screen()?;
         blur_buffer(
             &mut captured.pixels,
             captured.width as usize,
             captured.height as usize,
-            BLUR_RADIUS,
+            settings.blur_radius.max(1),
         );
         let bitmap_info = build_bitmap_info(captured.width, captured.height);
 
@@ -91,6 +100,19 @@ fn run() -> Result<()> {
     }
 
     Ok(())
+}
+
+fn should_open_settings_ui(settings: &Settings) -> bool {
+    if settings.open_settings_on_startup {
+        return true;
+    }
+
+    env::args().any(|arg| {
+        matches!(
+            arg.as_str(),
+            "--settings" | "--open-settings" | "--settings-on-startup"
+        )
+    })
 }
 
 unsafe fn create_window_loop() -> Result<()> {
@@ -117,7 +139,7 @@ unsafe fn create_window_loop() -> Result<()> {
     let hwnd = CreateWindowExW(
         WINDOW_EX_STYLE(WS_EX_TOPMOST.0 | WS_EX_TOOLWINDOW.0),
         CLASS_NAME,
-        w!("lockwin"),
+        w!("dwmlock"),
         WS_POPUP | WS_VISIBLE,
         0,
         0,

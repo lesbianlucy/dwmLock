@@ -15,9 +15,9 @@ use windows::{
     core::{PCWSTR, w},
 };
 
-use crate::settings::Settings;
+use crate::settings::{MonitorBlankingMode, Settings};
 
-const BLANK_CLASS: PCWSTR = w!("LockWinBlankWindow");
+const BLANK_CLASS: PCWSTR = w!("DwmLockBlankWindow");
 
 #[derive(Clone)]
 struct MonitorDescriptor {
@@ -25,11 +25,21 @@ struct MonitorDescriptor {
     rect: RECT,
 }
 
+pub fn available_monitor_names() -> Vec<String> {
+    enumerate_monitors().into_iter().map(|m| m.name).collect()
+}
+
 pub fn spawn_overlays(
     instance: windows::Win32::Foundation::HINSTANCE,
     settings: &Settings,
 ) -> Vec<HWND> {
-    if settings.disable_monitors.is_empty() {
+    if matches!(settings.monitor_mode, MonitorBlankingMode::None) {
+        return Vec::new();
+    }
+
+    if matches!(settings.monitor_mode, MonitorBlankingMode::Custom)
+        && settings.disable_monitors.is_empty()
+    {
         return Vec::new();
     }
 
@@ -37,17 +47,33 @@ pub fn spawn_overlays(
         register_blank_class(instance);
     }
 
-    let disable_set: HashSet<String> = settings
-        .disable_monitors
-        .iter()
-        .map(|s| canonicalize_name(s))
-        .collect();
+    let disable_set: Option<HashSet<String>> = match settings.monitor_mode {
+        MonitorBlankingMode::Custom => Some(
+            settings
+                .disable_monitors
+                .iter()
+                .map(|s| canonicalize_name(s))
+                .collect(),
+        ),
+        _ => None,
+    };
 
     let monitors = enumerate_monitors();
     let mut overlays = Vec::new();
     for monitor in monitors {
-        let canonical = canonicalize_name(&monitor.name);
-        if disable_set.contains(&canonical) {
+        let target = match settings.monitor_mode {
+            MonitorBlankingMode::All => true,
+            MonitorBlankingMode::Custom => {
+                let canonical = canonicalize_name(&monitor.name);
+                disable_set
+                    .as_ref()
+                    .map(|set| set.contains(&canonical))
+                    .unwrap_or(false)
+            }
+            MonitorBlankingMode::None => false,
+        };
+
+        if target {
             if let Some(hwnd) = unsafe { create_blank_window(instance, &monitor.rect) } {
                 overlays.push(hwnd);
             }

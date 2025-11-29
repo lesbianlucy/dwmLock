@@ -84,6 +84,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "dwmlock"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "dirs",
+ "once_cell",
+ "rand",
+ "serde",
+ "serde_json",
+ "windows",
+]
+
+[[package]]
 name = "find-msvc-tools"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -154,19 +167,6 @@ checksum = "416f7e718bdb06000964960ffa43b4335ad4012ae8b99060261aa4a8088d5ccb"
 dependencies = [
  "bitflags",
  "libc",
-]
-
-[[package]]
-name = "lockwin"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "dirs",
- "once_cell",
- "rand",
- "serde",
- "serde_json",
- "windows",
 ]
 
 [[package]]
