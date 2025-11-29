@@ -39,8 +39,10 @@ const ID_MONITOR_LIST: isize = 1005;
 const ID_MONITOR_ADD: isize = 1006;
 const ID_MONITOR_REMOVE: isize = 1007;
 const ID_BLUR_EDIT: isize = 1008;
+const ID_BLUR_CHECKBOX: isize = 1009;
 const ID_APPLY_BUTTON: isize = 1010;
 const ID_CLOSE_BUTTON: isize = 1011;
+const ID_TEXT_ON_MONITORS: isize = 1012;
 const BST_CHECKED_STATE: usize = 1;
 const BST_UNCHECKED_STATE: usize = 0;
 const MONITOR_MODE_OPTIONS: &[(MonitorBlankingMode, &str); 3] = &[
@@ -149,6 +151,7 @@ struct SettingsDialogState {
     selected_monitors: Vec<String>,
     password_edit: Option<HWND>,
     blur_edit: Option<HWND>,
+    blur_checkbox: Option<HWND>,
     show_checkbox: Option<HWND>,
     dismiss_checkbox: Option<HWND>,
     monitor_mode_combo: Option<HWND>,
@@ -157,6 +160,9 @@ struct SettingsDialogState {
     monitor_add_button: Option<HWND>,
     monitor_remove_button: Option<HWND>,
     monitor_mode: MonitorBlankingMode,
+    blur_enabled: bool,
+    text_checkbox: Option<HWND>,
+    text_on_all_monitors: bool,
     applied: bool,
 }
 
@@ -168,6 +174,7 @@ impl SettingsDialogState {
             selected_monitors: settings.disable_monitors.clone(),
             password_edit: None,
             blur_edit: None,
+            blur_checkbox: None,
             show_checkbox: None,
             dismiss_checkbox: None,
             monitor_mode_combo: None,
@@ -176,6 +183,9 @@ impl SettingsDialogState {
             monitor_add_button: None,
             monitor_remove_button: None,
             monitor_mode: settings.monitor_mode,
+            blur_enabled: settings.blur_enabled,
+            text_checkbox: None,
+            text_on_all_monitors: settings.text_on_all_monitors,
             applied: false,
         }
     }
@@ -212,6 +222,19 @@ impl SettingsDialogState {
         }
 
         layout_y += 10;
+        self.blur_checkbox = Some(create_checkbox(
+            hwnd,
+            "Enable blur background",
+            left,
+            layout_y,
+            content_width,
+            ID_BLUR_CHECKBOX,
+        ));
+        if let Some(checkbox) = self.blur_checkbox {
+            set_checkbox_state(checkbox, self.blur_enabled);
+        }
+
+        layout_y += 30;
         self.show_checkbox = Some(create_checkbox(
             hwnd,
             "Open settings on startup",
@@ -307,7 +330,20 @@ impl SettingsDialogState {
             populate_list(list, &self.selected_monitors);
         }
 
-        layout_y += 140;
+        layout_y += 10;
+        self.text_checkbox = Some(create_checkbox(
+            hwnd,
+            "Show lock text on each monitor",
+            left,
+            layout_y,
+            content_width,
+            ID_TEXT_ON_MONITORS,
+        ));
+        if let Some(text) = self.text_checkbox {
+            set_checkbox_state(text, self.text_on_all_monitors);
+        }
+        layout_y += 30;
+        layout_y += 120;
         create_button(
             hwnd,
             "Apply Changes",
@@ -319,6 +355,7 @@ impl SettingsDialogState {
         );
         create_button(hwnd, "Close", left + 140, layout_y, 90, 32, ID_CLOSE_BUTTON);
 
+        self.update_blur_edit_state();
         self.update_monitor_control_state();
     }
 
@@ -327,6 +364,30 @@ impl SettingsDialogState {
         F: Fn(&Settings) -> bool,
     {
         unsafe { getter(&*self.settings) }
+    }
+
+    fn blur_controls_enabled(&self) -> bool {
+        self.blur_enabled
+    }
+
+    unsafe fn blur_checkbox_changed(&mut self) {
+        if let Some(checkbox) = self.blur_checkbox {
+            self.blur_enabled = checkbox_checked(checkbox);
+            self.update_blur_edit_state();
+        }
+    }
+
+    unsafe fn text_checkbox_changed(&mut self) {
+        if let Some(checkbox) = self.text_checkbox {
+            self.text_on_all_monitors = checkbox_checked(checkbox);
+        }
+    }
+
+    unsafe fn update_blur_edit_state(&self) {
+        let enabled = self.blur_controls_enabled();
+        if let Some(edit) = self.blur_edit {
+            set_control_enabled(edit, enabled);
+        }
     }
 
     fn monitor_mode_is_custom(&self) -> bool {
@@ -427,8 +488,13 @@ impl SettingsDialogState {
         if let Some(dismiss) = self.dismiss_checkbox {
             (*self.settings).dismiss_notifications_on_startup = checkbox_checked(dismiss);
         }
+        if let Some(text) = self.text_checkbox {
+            self.text_on_all_monitors = checkbox_checked(text);
+        }
         (*self.settings).monitor_mode = self.monitor_mode;
+        (*self.settings).blur_enabled = self.blur_enabled;
         (*self.settings).disable_monitors = self.selected_monitors.clone();
+        (*self.settings).text_on_all_monitors = self.text_on_all_monitors;
         self.applied = true;
     }
 
@@ -447,6 +513,8 @@ unsafe fn handle_command(hwnd: HWND, state: &mut SettingsDialogState, wparam: WP
 
     match command {
         code if code == BN_CLICKED as i32 => match control_id {
+            ID_BLUR_CHECKBOX => state.blur_checkbox_changed(),
+            ID_TEXT_ON_MONITORS => state.text_checkbox_changed(),
             ID_MONITOR_ADD => state.add_selected_monitor(),
             ID_MONITOR_REMOVE => state.remove_selected_monitor(),
             ID_APPLY_BUTTON => state.apply_settings(),

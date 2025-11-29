@@ -32,6 +32,10 @@ pub struct Settings {
     pub dismiss_notifications_on_startup: bool,
     #[serde(default = "default_blur_radius")]
     pub blur_radius: usize,
+    #[serde(default = "default_blur_enabled")]
+    pub blur_enabled: bool,
+    #[serde(default = "default_text_on_all_monitors")]
+    pub text_on_all_monitors: bool,
 }
 
 impl Default for Settings {
@@ -43,6 +47,8 @@ impl Default for Settings {
             open_settings_on_startup: false,
             dismiss_notifications_on_startup: true,
             blur_radius: default_blur_radius(),
+            blur_enabled: default_blur_enabled(),
+            text_on_all_monitors: default_text_on_all_monitors(),
         }
     }
 }
@@ -56,9 +62,6 @@ pub fn load_settings() -> Settings {
     };
     if settings.password.trim().is_empty() {
         settings.password = default_password();
-    }
-    if settings.blur_radius == 0 {
-        settings.blur_radius = default_blur_radius();
     }
     settings
 }
@@ -97,6 +100,14 @@ fn default_dismiss_notifications() -> bool {
 
 fn default_blur_radius() -> usize {
     DEFAULT_BLUR_RADIUS
+}
+
+fn default_blur_enabled() -> bool {
+    true
+}
+
+fn default_text_on_all_monitors() -> bool {
+    false
 }
 
 pub fn settings_path() -> PathBuf {
