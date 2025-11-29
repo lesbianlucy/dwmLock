@@ -6,9 +6,9 @@ compile_error!("lockwin currently only targets Windows platforms.");
 mod blur;
 mod capture;
 mod config;
-mod game;
 mod keyboard;
 mod monitors;
+mod notifications;
 mod render;
 mod settings;
 mod state;
@@ -19,9 +19,9 @@ use crate::{
     config::{
         APPROVAL_CAPTION, APPROVAL_PROMPT, BLUR_RADIUS, CLASS_NAME, TIMER_ID, TIMER_INTERVAL_MS,
     },
-    game::MiniGameState,
     keyboard::CtrlAltDeleteHook,
     monitors::{destroy_overlays, spawn_overlays},
+    notifications::dismiss_notifications,
     render::draw_overlay,
     settings::load_settings,
     state::{AppState, app_state, arm_warning, init_state, mark_warning},
@@ -36,18 +36,15 @@ use windows::{
             StretchDIBits,
         },
         System::LibraryLoader::GetModuleHandleW,
-        UI::{
-            Input::KeyboardAndMouse::VK_ESCAPE,
-            WindowsAndMessaging::{
-                CS_HREDRAW, CS_VREDRAW, ClipCursor, CreateWindowExW, DefWindowProcW, DestroyWindow,
-                DispatchMessageW, GetMessageW, HMENU, HWND_TOPMOST, KillTimer, LoadCursorW, MSG,
-                MessageBoxW, PostQuitMessage, RegisterClassW, SC_CLOSE, SW_SHOW, SWP_NOMOVE,
-                SWP_NOSIZE, SWP_SHOWWINDOW, SetCursorPos, SetForegroundWindow, SetTimer,
-                SetWindowPos, ShowCursor, ShowWindow, TranslateMessage, WINDOW_EX_STYLE,
-                WM_ACTIVATE, WM_CHAR, WM_CLOSE, WM_CREATE, WM_DESTROY, WM_ERASEBKGND, WM_KEYDOWN,
-                WM_MOUSEMOVE, WM_PAINT, WM_SYSCOMMAND, WM_SYSKEYDOWN, WM_TIMER, WNDCLASS_STYLES,
-                WNDCLASSW, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_POPUP, WS_VISIBLE,
-            },
+        UI::WindowsAndMessaging::{
+            CS_HREDRAW, CS_VREDRAW, ClipCursor, CreateWindowExW, DefWindowProcW, DestroyWindow,
+            DispatchMessageW, GetMessageW, HMENU, HWND_TOPMOST, KillTimer, LoadCursorW, MSG,
+            MessageBoxW, PostQuitMessage, RegisterClassW, SC_CLOSE, SW_SHOW, SWP_NOMOVE,
+            SWP_NOSIZE, SWP_SHOWWINDOW, SetCursorPos, SetForegroundWindow, SetTimer, SetWindowPos,
+            ShowCursor, ShowWindow, TranslateMessage, WINDOW_EX_STYLE, WM_ACTIVATE, WM_CHAR,
+            WM_CLOSE, WM_CREATE, WM_DESTROY, WM_ERASEBKGND, WM_KEYDOWN, WM_MOUSEMOVE, WM_PAINT,
+            WM_SYSCOMMAND, WM_SYSKEYDOWN, WM_TIMER, WNDCLASS_STYLES, WNDCLASSW, WS_EX_TOOLWINDOW,
+            WS_EX_TOPMOST, WS_POPUP, WS_VISIBLE,
         },
     },
     core::{Result, w},
@@ -66,9 +63,9 @@ fn run() -> Result<()> {
             return Ok(());
         }
 
+        dismiss_notifications();
         let settings = load_settings();
         let mut captured = capture_screen()?;
-        let autostart_game = settings.minigame_autostart;
         blur_buffer(
             &mut captured.pixels,
             captured.width as usize,
@@ -87,7 +84,6 @@ fn run() -> Result<()> {
             warning_since: None,
             settings,
             monitor_windows: Vec::new(),
-            game: MiniGameState::new(autostart_game),
         });
 
         let _ctrl_alt_delete_hook = CtrlAltDeleteHook::install()?;
@@ -203,17 +199,10 @@ unsafe extern "system" fn window_proc(
             }
         }
         WM_TIMER => {
-            {
-                let mut state = app_state().lock().unwrap();
-                state.game.tick();
-            }
             let _ = InvalidateRect(hwnd, None, false);
             LRESULT(0)
         }
-        WM_KEYDOWN | WM_SYSKEYDOWN => {
-            handle_keydown(hwnd, wparam.0 as u32);
-            LRESULT(0)
-        }
+        WM_KEYDOWN | WM_SYSKEYDOWN => LRESULT(0),
         WM_CLOSE => LRESULT(0),
         WM_ACTIVATE => {
             let _ = SetForegroundWindow(hwnd);
@@ -309,17 +298,6 @@ unsafe fn draw_buffered(hdc: windows::Win32::Graphics::Gdi::HDC, state: &AppStat
 
 fn handle_char(hwnd: HWND, char_code: u32) {
     let mut state = app_state().lock().unwrap();
-    if let Some(ch) = char::from_u32(char_code) {
-        let consumed = state.game.handle_input(ch);
-        if consumed {
-            drop(state);
-            unsafe {
-                let _ = InvalidateRect(hwnd, None, false);
-            }
-            return;
-        }
-    }
-
     match char_code {
         0x08 => {
             state.input.pop();
@@ -350,31 +328,6 @@ fn handle_char(hwnd: HWND, char_code: u32) {
     drop(state);
     unsafe {
         let _ = InvalidateRect(hwnd, None, false);
-    }
-}
-
-fn handle_keydown(hwnd: HWND, vk: u32) {
-    const KEY_G: u32 = b'G' as u32;
-
-    let mut state = app_state().lock().unwrap();
-    match vk {
-        KEY_G => {
-            state.game.toggle();
-            drop(state);
-            unsafe {
-                let _ = InvalidateRect(hwnd, None, false);
-            }
-        }
-        k if k == VK_ESCAPE.0 as u32 => {
-            if state.game.active {
-                state.game.stop();
-                drop(state);
-                unsafe {
-                    let _ = InvalidateRect(hwnd, None, false);
-                }
-            }
-        }
-        _ => {}
     }
 }
 

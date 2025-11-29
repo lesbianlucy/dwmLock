@@ -20,18 +20,11 @@ use crate::{
 
 const PRIMARY_FONT: &str = "Segoe UI Variable Display";
 const MONO_FONT: &str = "JetBrains Mono";
+const MIN_PANEL_WIDTH: i32 = 320;
+const MIN_PANEL_HEIGHT: i32 = 280;
 
 pub unsafe fn draw_overlay(hdc: HDC, state: &AppState) {
-    let overlay_width = (state.width as f32 * 0.55) as i32;
-    let overlay_height = 320;
-    let left = (state.width - overlay_width) / 2;
-    let top = (state.height - overlay_height) / 2;
-    let rect = RECT {
-        left,
-        top,
-        right: left + overlay_width,
-        bottom: top + overlay_height,
-    };
+    let rect = responsive_panel_rect(state);
 
     let warning = warning_active(state);
     draw_panel_background(hdc, &rect, warning);
@@ -45,82 +38,145 @@ pub unsafe fn draw_overlay(hdc: HDC, state: &AppState) {
     }
 }
 
+fn responsive_panel_rect(state: &AppState) -> RECT {
+    let horizontal_margin = ((state.width as f32) * 0.08).clamp(40.0, 180.0).round() as i32;
+    let vertical_margin = ((state.height as f32) * 0.1).clamp(50.0, 200.0).round() as i32;
+    let available_width = (state.width - 2 * horizontal_margin).max(MIN_PANEL_WIDTH);
+    let available_height = (state.height - 2 * vertical_margin).max(MIN_PANEL_HEIGHT);
+    let preferred_width = ((state.width as f32) * 0.45).round() as i32;
+    let preferred_height = ((state.height as f32) * 0.42).round() as i32;
+    let width = choose_dimension(preferred_width, available_width, MIN_PANEL_WIDTH);
+    let height = choose_dimension(preferred_height, available_height, MIN_PANEL_HEIGHT);
+    let left = ((state.width - width) / 2)
+        .max(horizontal_margin)
+        .min(state.width - horizontal_margin - width);
+    let top = ((state.height - height) / 2)
+        .max(vertical_margin)
+        .min(state.height - vertical_margin - height);
+    RECT {
+        left,
+        top,
+        right: left + width,
+        bottom: top + height,
+    }
+}
+
+fn choose_dimension(preferred: i32, available: i32, min_size: i32) -> i32 {
+    let limited = preferred.min(available);
+    if available > min_size {
+        limited.max(min_size)
+    } else {
+        available.max(0)
+    }
+}
+
+fn overlay_scale(rect: &RECT) -> f32 {
+    let base = 320.0;
+    ((rect.bottom - rect.top) as f32 / base).clamp(0.85, 1.35)
+}
+
+fn scaled(value: i32, scale: f32) -> i32 {
+    ((value as f32) * scale).round() as i32
+}
+
 unsafe fn draw_normal_content(hdc: HDC, rect: RECT, state: &AppState) {
+    let scale = overlay_scale(&rect);
+    let spacing = scaled(24, scale);
     let now = Local::now();
     let time_text = now.format("%H:%M:%S").to_string();
     let date_text = now.format("%A, %B %d %Y").to_string();
-    let tagline = "Sleek blur lock inspired by unixporn setups";
+    let tagline = "Windows input is locked; type the password and press Enter.";
+    let hint_text = "Use Backspace to correct mistakes. Ctrl+Alt+Delete is suppressed.";
 
     let mut tag_rect = rect;
-    tag_rect.left += 30;
-    tag_rect.top += 20;
-    tag_rect.right = tag_rect.left + 120;
-    tag_rect.bottom = tag_rect.top + 32;
+    tag_rect.left += spacing;
+    tag_rect.top += spacing / 2;
+    tag_rect.right = tag_rect.left + scaled(140, scale);
+    tag_rect.bottom = tag_rect.top + scaled(34, scale);
     draw_tag(hdc, &tag_rect, "LOCKED", COLORREF(0x00E06C75));
 
     let mut time_rect = rect;
-    time_rect.top = tag_rect.bottom + 10;
-    time_rect.bottom = time_rect.top + 110;
+    time_rect.left += spacing;
+    time_rect.right -= spacing;
+    time_rect.top = tag_rect.bottom + spacing;
+    time_rect.bottom = time_rect.top + scaled(110, scale);
     draw_text_with_font(
         hdc,
         &time_rect,
         &time_text,
-        96,
+        scaled(96, scale),
         FW_BOLD.0 as i32,
         COLORREF(0x00F5F5F5),
         PRIMARY_FONT,
     );
 
     let mut date_rect = time_rect;
-    date_rect.top = time_rect.bottom - 10;
-    date_rect.bottom = date_rect.top + 40;
+    date_rect.top = time_rect.bottom - scaled(10, scale);
+    date_rect.bottom = date_rect.top + scaled(42, scale);
     draw_text_with_font(
         hdc,
         &date_rect,
         &date_text,
-        28,
+        scaled(28, scale),
         FW_NORMAL.0 as i32,
         COLORREF(0x00B4C7F5),
         PRIMARY_FONT,
     );
 
-    draw_divider(hdc, rect, date_rect.bottom + 10);
+    draw_divider(hdc, rect, date_rect.bottom + spacing / 2);
 
     let mut password_rect = rect;
-    password_rect.top = date_rect.bottom + 30;
-    password_rect.bottom = password_rect.top + 50;
-    draw_password_field(hdc, &password_rect, state);
+    password_rect.left += spacing;
+    password_rect.right -= spacing;
+    password_rect.top = date_rect.bottom + spacing;
+    password_rect.bottom = password_rect.top + scaled(60, scale);
+    draw_password_field(hdc, &password_rect, state, scaled(28, scale));
 
     let mut tag_line_rect = password_rect;
-    tag_line_rect.top = password_rect.bottom + 20;
-    tag_line_rect.bottom = tag_line_rect.top + 30;
+    tag_line_rect.top = password_rect.bottom + spacing / 2;
+    tag_line_rect.bottom = tag_line_rect.top + scaled(28, scale);
     draw_text_with_font(
         hdc,
         &tag_line_rect,
         tagline,
-        20,
+        scaled(20, scale),
         FW_NORMAL.0 as i32,
         COLORREF(0x0095A5C1),
         PRIMARY_FONT,
     );
 
-    draw_minigame_panel(hdc, rect, state, false);
+    let mut hint_rect = tag_line_rect;
+    hint_rect.top = tag_line_rect.bottom + spacing / 2;
+    hint_rect.bottom = hint_rect.top + scaled(24, scale);
+    draw_text_with_font(
+        hdc,
+        &hint_rect,
+        hint_text,
+        scaled(18, scale),
+        FW_MEDIUM.0 as i32,
+        COLORREF(0x00C7D2EE),
+        PRIMARY_FONT,
+    );
 }
 
 unsafe fn draw_warning_content(hdc: HDC, rect: RECT, state: &AppState) {
+    let scale = overlay_scale(&rect);
+    let spacing = scaled(22, scale);
     let now = Local::now();
     let top_message = format!("{}!", WARNING_MESSAGE);
     let time_text = now.format("%H:%M:%S").to_string();
-    let hint_text = "Hands off the keyboard and mouse.";
+    let hint_text = "Hands off the keyboard and mouse until the warning clears.";
 
     let mut alert_rect = rect;
-    alert_rect.top += 25;
-    alert_rect.bottom = alert_rect.top + 90;
+    alert_rect.left += spacing;
+    alert_rect.right -= spacing;
+    alert_rect.top += spacing;
+    alert_rect.bottom = alert_rect.top + scaled(90, scale);
     draw_text_with_font(
         hdc,
         &alert_rect,
         &top_message,
-        54,
+        scaled(54, scale),
         FW_BOLD.0 as i32,
         COLORREF(0x00FF8585),
         PRIMARY_FONT,
@@ -128,39 +184,41 @@ unsafe fn draw_warning_content(hdc: HDC, rect: RECT, state: &AppState) {
 
     let mut time_rect = alert_rect;
     time_rect.top = alert_rect.bottom;
-    time_rect.bottom = time_rect.top + 60;
+    time_rect.bottom = time_rect.top + scaled(60, scale);
     draw_text_with_font(
         hdc,
         &time_rect,
         &time_text,
-        40,
+        scaled(40, scale),
         FW_MEDIUM.0 as i32,
         COLORREF(0x00FFD6A5),
         PRIMARY_FONT,
     );
 
     let mut password_rect = time_rect;
-    password_rect.top = time_rect.bottom + 15;
-    password_rect.bottom = password_rect.top + 50;
-    draw_password_field(hdc, &password_rect, state);
+    password_rect.left += spacing;
+    password_rect.right -= spacing;
+    password_rect.top = time_rect.bottom + spacing;
+    password_rect.bottom = password_rect.top + scaled(60, scale);
+    draw_password_field(hdc, &password_rect, state, scaled(28, scale));
 
     let mut hint_rect = password_rect;
-    hint_rect.top = password_rect.bottom + 20;
-    hint_rect.bottom = hint_rect.top + 30;
+    hint_rect.left = password_rect.left;
+    hint_rect.right = password_rect.right;
+    hint_rect.top = password_rect.bottom + spacing / 2;
+    hint_rect.bottom = hint_rect.top + scaled(30, scale);
     draw_text_with_font(
         hdc,
         &hint_rect,
         hint_text,
-        22,
+        scaled(22, scale),
         FW_NORMAL.0 as i32,
         COLORREF(0x00F0C674),
         PRIMARY_FONT,
     );
-
-    draw_minigame_panel(hdc, rect, state, true);
 }
 
-unsafe fn draw_password_field(hdc: HDC, rect: &RECT, state: &AppState) {
+unsafe fn draw_password_field(hdc: HDC, rect: &RECT, state: &AppState, font_size: i32) {
     let masked = if state.input.is_empty() {
         "…".to_string()
     } else {
@@ -171,66 +229,9 @@ unsafe fn draw_password_field(hdc: HDC, rect: &RECT, state: &AppState) {
         hdc,
         rect,
         &password_text,
-        28,
+        font_size,
         FW_NORMAL.0 as i32,
         COLORREF(0x00FFFFFF),
-        MONO_FONT,
-    );
-}
-
-unsafe fn draw_minigame_panel(hdc: HDC, rect: RECT, state: &AppState, warning: bool) {
-    let mut panel_rect = rect;
-    panel_rect.left += 25;
-    panel_rect.right -= 25;
-    panel_rect.bottom -= 10;
-    panel_rect.top = panel_rect.bottom - 100;
-
-    let panel_color = if warning {
-        COLORREF(0x002B1010)
-    } else {
-        COLORREF(0x00282F4A)
-    };
-
-    let brush = CreateSolidBrush(panel_color);
-    FillRect(hdc, &panel_rect, brush);
-    let _ = windows::Win32::Graphics::Gdi::DeleteObject(brush);
-
-    let status_text = if state.game.active {
-        format!(
-            "Mini-game active (Esc to stop): type '{}'",
-            state.game.target_display()
-        )
-    } else {
-        "Press G to start the typing mini-game".to_string()
-    };
-
-    let mut status_rect = panel_rect;
-    status_rect.top += 8;
-    status_rect.bottom = status_rect.top + 40;
-    draw_text_with_font(
-        hdc,
-        &status_rect,
-        &status_text,
-        24,
-        FW_MEDIUM.0 as i32,
-        COLORREF(0x00FDFDFD),
-        PRIMARY_FONT,
-    );
-
-    let scoreboard = format!(
-        "Score: {}   Misses: {}",
-        state.game.score, state.game.misses
-    );
-    let mut score_rect = panel_rect;
-    score_rect.top = status_rect.bottom - 5;
-    score_rect.bottom = score_rect.top + 40;
-    draw_text_with_font(
-        hdc,
-        &score_rect,
-        &scoreboard,
-        22,
-        FW_NORMAL.0 as i32,
-        COLORREF(0x00A3C4F3),
         MONO_FONT,
     );
 }

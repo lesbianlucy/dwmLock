@@ -2,7 +2,7 @@ use once_cell::sync::OnceCell;
 use std::{sync::Mutex, time::Instant};
 use windows::{Win32::Foundation::HWND, Win32::Graphics::Gdi::BITMAPINFO};
 
-use crate::{config::WARNING_DURATION, game::MiniGameState, settings::Settings};
+use crate::{config::WARNING_DURATION, settings::Settings};
 
 pub static APP_STATE: OnceCell<Mutex<AppState>> = OnceCell::new();
 
@@ -17,7 +17,6 @@ pub struct AppState {
     pub warning_since: Option<Instant>,
     pub settings: Settings,
     pub monitor_windows: Vec<HWND>,
-    pub game: MiniGameState,
 }
 
 pub fn init_state(state: AppState) {

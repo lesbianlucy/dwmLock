@@ -10,8 +10,6 @@ pub struct Settings {
     pub password: String,
     #[serde(default = "default_disable_monitors")]
     pub disable_monitors: Vec<String>,
-    #[serde(default)]
-    pub minigame_autostart: bool,
 }
 
 impl Default for Settings {
@@ -19,7 +17,6 @@ impl Default for Settings {
         Self {
             password: default_password(),
             disable_monitors: default_disable_monitors(),
-            minigame_autostart: false,
         }
     }
 }
